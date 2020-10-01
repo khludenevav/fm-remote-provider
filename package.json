@@ -1,0 +1,56 @@
+{
+  "name": "devextreme-nodejs-file-system-provider",
+  "version": "1.0.0",
+  "description": "Devextreme FileManager nodejs file system provider",
+  "author": "DevExpress Inc.",
+  "license": "SEE LICENSE IN README.md",
+  "homepage": "https://devexpress.com/",
+  "bugs": "https://www.devexpress.com/support/",
+  "main": "lib/index.js",
+  "scripts": {
+    "--------------------------BUILD----------------------------": "",
+    "build": "rimraf ./lib && npm run build:src:prod && npm run build:bundle:prod && node configs/post-build.js",
+    "build:src:dev": "tsc -b src/tsconfig.dev.json",
+    "build:src:prod": "tsc -b src/tsconfig.prod.json",
+    "build:bundle:dev": "webpack --config ./configs/webpack.dev.js --progress --colors",
+    "build:bundle:prod": "webpack --config ./configs/webpack.prod.js --progress --colors",
+    "--------------------------COMMON---------------------------": "",
+    "test:src": "ts-node node_modules/jasmine/bin/jasmine --config=configs/jasmine.json",
+    "test:filenames": "node configs/file-name-checker.js . lib README.md",
+    "test": "npm run test:filenames && npm run lint:ts && npm run test:src",
+    "--------------------------LINT-----------------------------": "",
+    "lint:ts": "eslint --ext .ts . --quiet",
+    "lint:ts:fix": "eslint --ext .ts . --quiet --fix"
+  },
+  "dependencies": {
+    "tslib": "2.0.1"
+  },
+  "devDependencies": {
+    "@types/jasmine": "^3.3.4",
+    "@types/node": "12.12.2",
+    "@types/webpack": "^4.4.23",
+    "@typescript-eslint/eslint-plugin": "^3.9.0",
+    "@typescript-eslint/parser": "^3.9.0",
+    "eslint": "^7.3.1",
+    "eslint-plugin-import": "^2.22.0",
+    "eslint-plugin-no-loops": "^0.3.0",
+    "eslint-plugin-spellcheck": "0.0.11",
+    "jasmine": "^3.3.1",
+    "rimraf": "3.0.2",
+    "terser-webpack-plugin": "^1.3.0",
+    "ts-node": "^7.0.1",
+    "typescript": "4.0.2",
+    "uglifyjs-webpack-plugin": "^2.1.1",
+    "webpack": "^4.29.0",
+    "webpack-cli": "^3.2.1",
+    "webpack-merge": "^4.2.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DevExpress/WebUtils"
+  },
+  "keywords": [
+    "devexpress",
+    "devextreme"
+  ]
+}

@@ -1,0 +1,9 @@
+*.js.map
+*.d.ts.map
+*.tsbuildinfo
+.editorconfig
+.eslintignore
+.eslintrc
+file-provider.code-workspace
+shippable.yml
+configs/

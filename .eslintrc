@@ -1,0 +1,122 @@
+{
+    "root": true,
+    "parser": "@typescript-eslint/parser",
+    "parserOptions": {
+        "createDefaultProgram": true,
+        "project": "./src/tsconfig.json",
+        "ecmaVersion": 6,
+        "sourceType": "module"
+    },
+    "plugins": [
+        "@typescript-eslint/eslint-plugin"
+    ],
+    "extends": [
+        "eslint:recommended",
+        "plugin:@typescript-eslint/eslint-recommended",
+        "plugin:@typescript-eslint/recommended"
+    ],
+    "rules": {
+        "block-spacing": "error",
+        "comma-spacing": "error",
+        "computed-property-spacing": "error",
+        "comma-style": ["error", "last"],
+        "eqeqeq": ["error", "allow-null"],
+        "strict": "error",
+        "func-call-spacing": "error",
+        "key-spacing": "error",
+        "keyword-spacing": [
+            "error",
+            {
+                "overrides": {
+                    "catch": { "after": false },
+                    "for": { "after": false },
+                    "if": { "after": false },
+                    "switch": { "after": false },
+                    "while": { "after": false }
+                }
+            }
+        ],
+        "no-multiple-empty-lines": [ "error", { "max": 2 } ],
+        "no-multi-spaces": "error",
+        "no-trailing-spaces": "error",
+        "no-empty": ["error", { "allowEmptyCatch": true }],
+        "no-new-func": "error",
+        "no-eval": "error",
+        "no-undef-init": "error",
+        "no-unused-vars": ["error", { "args": "none", "ignoreRestSiblings": true, "argsIgnorePattern": "^_" }],
+        "no-extend-native": "error",
+        "no-alert": "error",
+        "no-console": "error",
+        //"no-restricted-syntax": [ "error", "ForOfStatement" ],
+        "no-var": "error",
+        "no-whitespace-before-property": "error",
+        "object-curly-spacing": [ "error", "always" ],
+        "one-var": ["error", "never"],
+        "prefer-const": "error",
+        "semi-spacing": "error",
+        "semi": "error",
+        "space-before-blocks": "error",
+        "space-before-function-paren": [ "error", "never" ],
+        "space-in-parens": "error",
+        "space-infix-ops": "error",
+        "space-unary-ops": "error",
+        "spaced-comment": [ "error", "always", {
+            "exceptions": [ "#DEBUG", "#ENDDEBUG" ],
+            "markers": [ "/" ]
+        } ],
+
+        "brace-style": [ "error", "stroustrup", { "allowSingleLine": false } ],
+        "nonblock-statement-body-position": ["error", "below"],
+        "curly": [ "error", "multi-or-nest" ],
+
+        "unicode-bom": [ "error", "never" ],
+        "eol-last": [ "error", "always" ],
+        "indent": [
+            "error",
+            4,
+            {
+                "SwitchCase": 1,
+                "MemberExpression": 1,
+                "CallExpression": {
+                    "arguments": 1
+                }
+            }
+        ],
+        "quotes": ["error", "single"],
+        "no-cond-assign": "off",
+        "no-useless-escape": "warn",
+
+        "@typescript-eslint/no-explicit-any": "off",
+        "@typescript-eslint/no-unused-vars": ["warn", {"args": "after-used", "argsIgnorePattern": "^_"}],
+        "@typescript-eslint/explicit-module-boundary-types": "warn",
+        "@typescript-eslint/no-inferrable-types": "off",
+        "@typescript-eslint/no-empty-function": "off",
+        "@typescript-eslint/no-empty-interface": "off",
+        "@typescript-eslint/no-non-null-assertion": "off",
+        "@typescript-eslint/member-delimiter-style": [
+            "error",
+            {
+                "multiline": {
+                    "delimiter": "comma",
+                    "requireLast": false
+                },
+                "singleline": {
+                    "delimiter": "comma",
+                    "requireLast": false
+                },
+                "overrides": {
+                    "interface": {
+                        "multiline": {
+                            "delimiter": "semi",
+                            "requireLast": true
+                        },
+                        "singleline": {
+                            "delimiter": "semi",
+                            "requireLast": true
+                        }
+                    }
+                }
+            }
+        ]
+    }
+}

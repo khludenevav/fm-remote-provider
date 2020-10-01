@@ -1,0 +1,29 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "incremental": true,
+    "composite": true,
+    "allowJs": false,
+    "noEmitOnError": true,
+    "noErrorTruncation": true,
+    "removeComments": true,
+    "sourceMap": true,
+    "declarationMap": true,
+    "declaration": true,
+    "target": "es6",
+    "module": "CommonJS",
+    "noUnusedParameters": true,
+    "noUnusedLocals": true,
+    "importHelpers": true,
+    "strict": true,
+    "types": ["jasmine", "node"],
+    "outDir": "../lib",
+    "baseUrl": ".",
+    "rootDir": ".",
+    "lib": ["es6"]
+  },
+  "include": [
+    "**/*.ts"
+  ]
+}
+

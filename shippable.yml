@@ -1,0 +1,14 @@
+language: node_js
+
+node_js:
+  - 10.15.1
+  
+build:
+  ci:
+    - shippable_retry npm i
+    - npm test
+    - npm run build:all:prod
+  cache: true
+  cache_dir_list:
+    - $SHIPPABLE_BUILD_DIR/node_modules
+    
