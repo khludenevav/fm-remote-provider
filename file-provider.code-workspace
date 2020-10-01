@@ -6,7 +6,7 @@
 	],
 	"settings": {
 		"editor.rulers": [
-            { "column": 150, "color": "#555555" }
+            150
         ],
 		"javascript.preferences.quoteStyle": "single",
 		"typescript.preferences.quoteStyle": "single",
