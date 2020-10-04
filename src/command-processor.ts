@@ -1,20 +1,38 @@
 import * as archiver from 'archiver';
 import * as path from 'path';
+import * as fs from 'fs';
+import * as fse from 'fs-extra';
+import * as util from 'util';
 
 import { FileSystemLoadFileContentOptions } from './content-provider';
 import { getContentType } from './content-type';
+import { FileSystemUploadFileOptions } from './file-uploader';
 import { FileSystemItemInfo } from './item';
-import { FileSystemCreateDirectoryOptions, FileSystemDeleteItemOptions, FileSystemRenameItemOptions } from './item-editor';
+import {
+    FileSystemCopyItemOptions, FileSystemCreateDirectoryOptions, FileSystemDeleteItemOptions, FileSystemMoveItemOptions, FileSystemRenameItemOptions
+} from './item-editor';
 import { FileSystemLoadItemOptions } from './item-loader';
 import { IFileSystemProvider, PhysicalFileSystemProvider } from './system-provider';
 
+const appendFile = util.promisify(fs.appendFile);
+const unlink = util.promisify(fs.unlink);
+const exists = util.promisify(fs.exists);
+
 export type PathInfoType = { name: string, key: string }[];
+export type ChunkMetadata = { UploadId: string, FileName: string, Index: number, TotalCount: number /* chunkCount */, FileSize: number };
 
 export type GetDirContentsCommandArguments = { pathInfo: PathInfoType };
 export type DownloadCommandArguments = { pathInfoList: PathInfoType[] };
 export type CreateDirCommandArguments = { name: string, pathInfo: PathInfoType };
 export type RemoveCommandArguments = { pathInfo: PathInfoType, isDirectory: boolean };
 export type RenameCommandArguments = { pathInfo: PathInfoType, isDirectory: boolean, name: string };
+export type CopyCommandArguments = { sourcePathInfo: PathInfoType, destinationPathInfo: PathInfoType, sourceIsDirectory: boolean };
+export type MoveCommandArguments = { sourcePathInfo: PathInfoType, destinationPathInfo: PathInfoType, sourceIsDirectory: boolean };
+export type UploadChunkCommandArguments = {
+    destinationPathInfo: PathInfoType,
+    chunkMetadata: ChunkMetadata,
+    file: { buffer: Buffer, encoding: string, mimetype: string, originalname: string, size: number } };
+export type AbortUploadCommandArguments = { uploadId: string }; // guid
 
 export interface ResultType extends NodeJS.WritableStream {
     json(json: any): void;
@@ -24,7 +42,7 @@ export interface ResultType extends NodeJS.WritableStream {
     send(obj: any): void;
 }
 
-export type RequestType = { method: 'GET' | 'POST', query: any, body: any};
+export type RequestType = { method: 'GET' | 'POST', query: any, body: any, files?: any[] }; // files field added by milter on upload command
 
 export class UploadConfiguration {
     chunkSize: number; // Specifies a chunk size in bytes.
@@ -99,6 +117,22 @@ export class FileSystemCommandProcessor {
                 this.renameCommandHandler(args as RenameCommandArguments, res);
                 break;
             }
+            case 'Copy': {
+                this.copyCommandHandler(args as CopyCommandArguments, res);
+                break;
+            }
+            case 'Move': {
+                this.moveCommandHandler(args as MoveCommandArguments, res);
+                break;
+            }
+            case 'UploadChunk': { // Uploads a file in chunks using multiple requests.
+                this.uploadChunkCommandHandler(args as UploadChunkCommandArguments, res);
+                break;
+            }
+            case 'AbortUpload': { // Aborts an upload and deletes a file or a folder.
+                this.abortUploadCommandHandler(args as AbortUploadCommandArguments, res);
+                break;
+            }
         }
     }
 
@@ -108,7 +142,16 @@ export class FileSystemCommandProcessor {
             query = req.query;
         else if(req.method === 'POST')
             query = req.body.command ? req.body : req.query;
-        return query && query.command ? { command: query.command, args: JSON.parse(query.arguments) } : null;
+        if(query && query.command) {
+            const args = JSON.parse(query.arguments);
+            if(req.files)
+                args.file = req.files[0];
+            if(args.chunkMetadata)
+                args.chunkMetadata = JSON.parse(args.chunkMetadata);
+            return { command: query.command, args };
+        }
+        else
+            return null;
     }
 
     protected async getDirContentsCommandHandler(args: GetDirContentsCommandArguments, res: ResultType): Promise<void> {
@@ -203,18 +246,100 @@ export class FileSystemCommandProcessor {
             });
         }
     }
+
+    protected async copyCommandHandler(args: CopyCommandArguments, res: ResultType): Promise<void> {
+        if(this.configuration.allowCopy) {
+            const sourcePath = this.getPathInfoPath(args.sourcePathInfo);
+            const destPath = this.getPathInfoPath(args.destinationPathInfo);
+            const options = new FileSystemCopyItemOptions(
+                new FileSystemItemInfo(sourcePath, args.sourceIsDirectory),
+                new FileSystemItemInfo(destPath, true));
+            const error = await this.configuration.fileSystemProvider.copyItem(options);
+            res.json({
+                success: error === null,
+            });
+        }
+        else {
+            res.json({
+                success: false,
+            });
+        }
+    }
+    protected async moveCommandHandler(args: CopyCommandArguments, res: ResultType): Promise<void> {
+        if(this.configuration.allowCopy) {
+            const sourcePath = this.getPathInfoPath(args.sourcePathInfo);
+            const destPath = this.getPathInfoPath(args.destinationPathInfo);
+            const options = new FileSystemMoveItemOptions(
+                new FileSystemItemInfo(sourcePath, args.sourceIsDirectory),
+                new FileSystemItemInfo(destPath, true));
+            const error = await this.configuration.fileSystemProvider.moveItem(options);
+            res.json({
+                success: error === null,
+            });
+        }
+        else {
+            res.json({
+                success: false,
+            });
+        }
+    }
+
+    protected async uploadChunkCommandHandler(args: UploadChunkCommandArguments, res: ResultType): Promise<void> {
+        if(this.configuration.allowUpload) {
+            if(args.chunkMetadata.Index >= args.chunkMetadata.TotalCount) {
+                res.json({
+                    success: false,
+                });
+                return;
+            }
+            try {
+                await this.ensureTmpDirCreated();
+                const tmpFilePath = this.getFilePath(args.chunkMetadata.UploadId);
+                await appendFile(tmpFilePath, args.file.buffer);
+                if(args.chunkMetadata.Index === args.chunkMetadata.TotalCount - 1) {
+                    const destPath = this.getPathInfoPath(args.destinationPathInfo);
+                    const options = new FileSystemUploadFileOptions(args.chunkMetadata.FileName,
+                        tmpFilePath,
+                        new FileSystemItemInfo(destPath, true));
+                    const error = await this.configuration.fileSystemProvider.uploadFile(options);
+                    unlink(tmpFilePath);
+                    res.json({
+                        success: error === null,
+                    });
+                }
+                else {
+                    res.json({
+                        success: true,
+                    });
+                }
+            }
+            catch(e) {
+                res.json({
+                    success: false,
+                });
+                return;
+            }
+        }
+        else {
+            res.json({
+                success: false,
+            });
+        }
+    }
+
+    protected async abortUploadCommandHandler(args: AbortUploadCommandArguments, res: ResultType): Promise<void> {
+        const tmpFilePath = this.getFilePath(args.uploadId);
+        if(await exists(tmpFilePath))
+            unlink(tmpFilePath);
+        res.json({
+            success: true,
+        });
+    }
+
+    protected getFilePath(uploadId: string): string {
+        return path.join(this.configuration.tempDirectory, 'dxFmUpload-' + uploadId);
+    }
+    protected async ensureTmpDirCreated(): Promise<void> {
+        return fse.ensureDir(this.configuration.tempDirectory);
+    }
 }
-
-// Move
-// Moves a file or a folder.
-
-// Copy
-// Copies a file or a folder.
-
-// UploadChunk
-// Uploads a file in chunks using multiple requests.
-
-// AbortUpload
-// Aborts an upload and deletes a file or a folder.
-
-

@@ -1,9 +1,13 @@
+import * as path from 'path';
+
 export class FileSystemItemInfo {
     isDirectory: boolean;
     key!: string;
-    name!: string;
     path: string;
     pathKeys: string[];
+    get name(): string {
+        return path.basename(this.path);
+    }
 
     constructor(path: string, isDirectory: boolean, pathKeys?: string[]) {
         this.path = path;
@@ -46,4 +50,5 @@ export class FileSystemDirectoryItem {
         this.hasSubDirectories = hasSubDirectories;
     }
 }
+
 export type FileSystemItem = FileSystemFileItem | FileSystemDirectoryItem;

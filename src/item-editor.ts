@@ -2,10 +2,10 @@ import { ErrorCode } from './errors';
 import { FileSystemItemInfo } from './item';
 
 export interface IFileSystemItemEditor {
-    copyItem(options: FileSystemCopyItemOptions): void; // Copies a file system item (file or directory).
+    copyItem(options: FileSystemCopyItemOptions): Promise<null | ErrorCode>; // Copies a file system item (file or directory).
     createDirectory(options: FileSystemCreateDirectoryOptions): Promise<null | ErrorCode>; // Creates a directory.
     deleteItem(options: FileSystemDeleteItemOptions): Promise<null | ErrorCode>; // Deletes a file system item (file or directory)
-    moveItem(options: FileSystemMoveItemOptions): void; // Moves a file system item (file or directory).
+    moveItem(options: FileSystemMoveItemOptions): Promise<null | ErrorCode>; // Moves a file system item (file or directory).
     renameItem(options: FileSystemRenameItemOptions): Promise<null | ErrorCode>; // Renames a file system item (file or directory).
 }
 

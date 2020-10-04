@@ -1,8 +1,11 @@
 import * as fs from 'fs';
+import * as fse from 'fs-extra';
 import * as path from 'path';
+import * as util from 'util';
 
 import { FileSystemLoadFileContentOptions, IFileContentProvider } from './content-provider';
 import { ErrorCode } from './errors';
+import { FileSystemUploadFileOptions, IFileUploader } from './file-uploader';
 import { FileSystemDirectoryItem, FileSystemFileItem, FileSystemItem } from './item';
 import {
     FileSystemCopyItemOptions, FileSystemCreateDirectoryOptions, FileSystemDeleteItemOptions, FileSystemMoveItemOptions, FileSystemRenameItemOptions,
@@ -10,7 +13,14 @@ import {
 } from './item-editor';
 import { FileSystemLoadItemOptions, IFileSystemItemLoader } from './item-loader';
 
-export interface IFileSystemProvider extends IFileSystemItemLoader, IFileSystemItemEditor, /* IFileUploader, */ IFileContentProvider {
+const exists = util.promisify(fs.exists);
+const mkdir = util.promisify(fse.mkdir);
+const readdir = util.promisify(fs.readdir);
+const stat = util.promisify(fs.stat);
+const rename = util.promisify(fs.rename);
+const writeFile = util.promisify(fs.writeFile);
+
+export interface IFileSystemProvider extends IFileSystemItemLoader, IFileSystemItemEditor, IFileUploader, IFileContentProvider {
 }
 
 export class PhysicalFileSystemProvider implements IFileSystemProvider {
@@ -22,107 +32,137 @@ export class PhysicalFileSystemProvider implements IFileSystemProvider {
 
     async getItems(options: FileSystemLoadItemOptions): Promise<FileSystemItem[]> {
         const currDir = path.join(this.rootDirectoryPath, options.directory.path);
-        return new Promise((resolve, _reject) => {
-            fs.readdir(currDir, { withFileTypes: true }, async(_err, files) => {
-                const dirResult: FileSystemItem[] = [];
-                for(const file of files) {
-                    const fullPath = path.join(currDir, file.name);
-                    const item = await this.createFileSystemItem(file, fullPath);
-                    if(item)
-                        dirResult.push(item);
-                }
-                resolve(dirResult.sort((a, b) => +b.isDirectory - +a.isDirectory));
-            });
-        });
+        const files = await readdir(currDir, { withFileTypes: true });
+        const dirResult: FileSystemItem[] = [];
+        for(const file of files) {
+            const fullPath = path.join(currDir, file.name);
+            const item = await this.createFileSystemItem(file, fullPath);
+            if(item)
+                dirResult.push(item);
+        }
+        return dirResult.sort((a, b) => +b.isDirectory - +a.isDirectory);
     }
 
-    // uploadFile(_options: FileSystemUploadFileOptions): void {
-
-    // }
+    async uploadFile(options: FileSystemUploadFileOptions): Promise<ErrorCode | null> {
+        const destPath = path.join(this.rootDirectoryPath, options.destinationDirectory.path, options.fileName);
+        try {
+            if(typeof options.fileContent === 'string')
+                await fse.copyFile(options.fileContent, destPath);
+            else
+                await writeFile(destPath, options.fileContent);
+            return null;
+        }
+        catch(e) {
+            return ErrorCode.Other;
+        }
+    }
 
     getFileContent(options: FileSystemLoadFileContentOptions): fs.ReadStream {
         const filePath = path.join(this.rootDirectoryPath, options.file.path);
         return fs.createReadStream(filePath);
     }
-    copyItem(_options: FileSystemCopyItemOptions): void {
-    }
+
     async createDirectory(options: FileSystemCreateDirectoryOptions): Promise<null | ErrorCode> {
-        const dir = path.join(this.rootDirectoryPath, options.parentDirectory.path, options.directoryName);
-        return new Promise(resolve => {
-            fs.exists(dir, exists => {
-                if(!exists) {
-                    fs.mkdir(dir, err => {
-                        if(err)
-                            resolve(ErrorCode.Other);
-                        else
-                            resolve(null);
-                    });
-                }
-                else
-                    resolve(ErrorCode.DirectoryExists);
-            });
-        });
+        const dirPath = path.join(this.rootDirectoryPath, options.parentDirectory.path, options.directoryName);
+        if(await exists(dirPath))
+            return ErrorCode.DirectoryExists;
+        try {
+            await mkdir(dirPath);
+        }
+        catch(e) {
+            return ErrorCode.Other;
+        }
+        return null;
     }
-    deleteItem(options: FileSystemDeleteItemOptions): Promise<null | ErrorCode> {
+
+    async deleteItem(options: FileSystemDeleteItemOptions): Promise<null | ErrorCode> {
         const fullPath = path.join(this.rootDirectoryPath, options.item.path);
-        return new Promise(resolve => {
-            fs.exists(fullPath, exists => {
-                if(options.item.isDirectory) {
-                    if(exists) {
-                        fs.rmdir(fullPath, err => {
-                            if(err)
-                                resolve(ErrorCode.Other);
-                            else
-                                resolve(null);
-                        });
-                    }
-                    else
-                        resolve(ErrorCode.DirectoryNotFound);
-                }
-                else {
-                    if(exists) {
-                        fs.unlink(fullPath, err => {
-                            if(err)
-                                resolve(ErrorCode.Other);
-                            else
-                                resolve(null);
-                        });
-                    }
-                    else
-                        resolve(ErrorCode.FileNotFound);
-                }
-            });
-        });
+        if(!await exists(fullPath))
+            return options.item.isDirectory ? ErrorCode.DirectoryNotFound : ErrorCode.FileNotFound;
+        try {
+            await fse.remove(fullPath);
+        }
+        catch(e) {
+            return ErrorCode.Other;
+        }
+        return null;
     }
-    moveItem(_options: FileSystemMoveItemOptions): void {
+
+    async copyItem(options: FileSystemCopyItemOptions): Promise<null | ErrorCode> {
+        const sourcePath = path.join(this.rootDirectoryPath, options.item.path);
+        const destDirPath = path.join(this.rootDirectoryPath, options.destinationDirectory.path);
+        if(!await exists(sourcePath))
+            return options.item.isDirectory ? ErrorCode.DirectoryNotFound : ErrorCode.FileNotFound;
+        try {
+            await fse.ensureDir(destDirPath);
+            const basename = path.basename(sourcePath);
+            const extension = path.extname(basename);
+            let name = basename.substr(0, basename.length - extension.length); // without extension
+            let dPath = path.join(destDirPath, name + extension);
+            if(dPath === sourcePath) {
+                do {
+                    name += ' - Copy';
+                    dPath = path.join(destDirPath, name + extension);
+                } while(await exists(dPath));
+            }
+            await fse.copy(sourcePath, dPath, { recursive: true });
+        }
+        catch(e) {
+            return ErrorCode.Other;
+        }
+        return null;
     }
-    renameItem(options: FileSystemRenameItemOptions): Promise<null | ErrorCode> {
+
+    async moveItem(options: FileSystemMoveItemOptions): Promise<null | ErrorCode> {
+        const sourcePath = path.join(this.rootDirectoryPath, options.item.path);
+        const destDirPath = path.join(this.rootDirectoryPath, options.destinationDirectory.path);
+        if(!await exists(sourcePath))
+            return options.item.isDirectory ? ErrorCode.DirectoryNotFound : ErrorCode.FileNotFound;
+        try {
+            await fse.ensureDir(destDirPath);
+            const dPath = path.join(destDirPath, path.basename(sourcePath));
+            if(sourcePath === dPath)
+                return ErrorCode.Other;
+            if(await exists(dPath))
+                return options.item.isDirectory ? ErrorCode.DirectoryExists : ErrorCode.FileExists;
+            await fse.move(sourcePath, dPath);
+        }
+        catch(e) {
+            return ErrorCode.Other;
+        }
+        return null;
+    }
+
+    async renameItem(options: FileSystemRenameItemOptions): Promise<null | ErrorCode> {
         const oldPath = path.join(this.rootDirectoryPath, options.item.path);
         const newPath = path.join(this.rootDirectoryPath, path.dirname(options.item.path), options.newItemName);
-        return new Promise(resolve => {
-            fs.exists(oldPath, exists => {
-                if(exists) {
-                    fs.rename(oldPath, newPath, err => {
-                        if(err)
-                            resolve(ErrorCode.Other);
-                        else
-                            resolve(null);
-                    });
-                }
-                else
-                    resolve(options.item.isDirectory ? ErrorCode.FileNotFound : ErrorCode.DirectoryNotFound);
-            });
-        });
+        if(!await exists(oldPath))
+            return options.item.isDirectory ? ErrorCode.FileNotFound : ErrorCode.DirectoryNotFound;
+        if(oldPath === newPath)
+            return ErrorCode.Other;
+        try {
+            await rename(oldPath, newPath);
+        }
+        catch(e) {
+            return ErrorCode.Other;
+        }
+        return null;
     }
 
     private async createFileSystemItem(file: fs.Dirent, fullPath: string): Promise<FileSystemItem | null> {
-        const stats = fs.statSync(fullPath);
+        const stats = await stat(fullPath);
         const dateModified = stats.mtime;
         if(file.isFile())
             return new FileSystemFileItem(file.name, dateModified, stats.size);
         else if(file.isDirectory()) {
-            const hasSubDirectories = fs.readdirSync(fullPath, { withFileTypes: true }).some(ent => ent.isDirectory());
-            return new FileSystemDirectoryItem(file.name, dateModified, hasSubDirectories);
+            try {
+                const files = await readdir(fullPath, { withFileTypes: true });
+                const hasSubDirectories = files.some(ent => ent.isDirectory());
+                return new FileSystemDirectoryItem(file.name, dateModified, hasSubDirectories);
+            }
+            catch(e) {
+                return null;
+            }
         }
         return null;
     }

@@ -1,16 +1,18 @@
-// export class FileSystemUploadFileOptions {
-//     destinationDirectory: FileSystemItemInfo; // Gets information about a directory where files are uploaded.
-//     fileContent: any; // Gets file content.
-//     fileName: string; // Gets the uploaded file name.
-//     tempFile: FileInfo; // Gets a temporary file.
+import { ErrorCode } from './errors';
+import { FileSystemItemInfo } from './item';
 
-//     constructor(fileName: string, tempFile: FileInfo /* Stream also possible */, destinationDirectory: FileSystemItemInfo) {
-//         this.fileName = fileName;
-//         this.tempFile = tempFile;
-//         this.destinationDirectory = destinationDirectory;
-//     }
-// }
+export class FileSystemUploadFileOptions {
+    destinationDirectory: FileSystemItemInfo; // Gets information about a directory where files are uploaded.
+    fileContent: Buffer | string; // Gets file content. (buffer or path)
+    fileName: string;
 
-// interface IFileUploader {
-//     uploadFile(options: FileSystemUploadFileOptions): void;
-// }
+    constructor(fileName: string, fileContent: Buffer | string, destinationDirectory: FileSystemItemInfo) {
+        this.fileName = fileName;
+        this.fileContent = fileContent;
+        this.destinationDirectory = destinationDirectory;
+    }
+}
+
+export interface IFileUploader {
+    uploadFile(options: FileSystemUploadFileOptions): Promise<ErrorCode | null>;
+}
